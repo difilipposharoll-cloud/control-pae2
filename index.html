@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de Asistencia PAE · IE Carlos Lleras Restrepo</title>
+  <style>
+    :root {
+      --ink: #172522; --muted: #52645d; --line: #dce4dd; --bg: #f5f7f4;
+      --green: #116b3b; --green-light: #eaf4ed; --red: #b52b31; --white: #fff;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .crest { width: 56px; height: 56px; object-fit: contain; flex: none; }
+    .brand strong { display: block; font-size: 16px; line-height: 1.2; }
+    .brand small { color: var(--muted); font-size: 12px; }
+
+    #login-overlay { min-height: 100vh; display: grid; grid-template-columns: minmax(0,1fr) 440px; }
+    .intro { padding: 48px min(7vw,90px); display: flex; flex-direction: column; justify-content: space-between; background: #f0f4f0; border-right: 1px solid var(--line); }
+    .eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--green); font-weight: 750; }
+    .intro h1 { font-size: clamp(36px,4.5vw,64px); line-height: 1.07; letter-spacing: -.045em; margin: 14px 0 20px; }
+    .intro p { font-size: 17px; color: var(--muted); max-width: 500px; }
+    .stripe { height: 5px; width: 78px; background: linear-gradient(90deg, var(--green) 0 55%, var(--red) 55%); }
+    .motto { color: var(--muted); font-size: 13px; }
+
+    .login-side { display: flex; align-items: center; padding: 40px; }
+    .login-box { width: 100%; max-width: 350px; margin: auto; }
+    .login-box h2 { font-size: 27px; letter-spacing: -.03em; margin: 0 0 8px; }
+    .login-box p { color: var(--muted); margin: 0 0 24px; }
+    .field { display: block; margin: 15px 0 6px; font-size: 13px; font-weight: 700; }
+    .control { width: 100%; min-height: 44px; border: 1px solid #bdcdc2; border-radius: 8px; background: #fff; padding: 10px 12px; color: var(--ink); }
+
+    .password-row { display: flex; gap: 8px; }
+    .secondary { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 8px; padding: 8px 13px; }
+    .primary { border: 0; border-radius: 8px; background: var(--green); color: #fff; min-height: 46px; padding: 10px 18px; font-weight: 700; width: 100%; margin-top: 20px; }
+    .tab-role { flex: 1; }
+    .tab-role.active { background: var(--green); color: #fff; border-color: var(--green); }
+    .error { color: #a41e2b; font-size: 13px; margin-top: 10px; display: none; }
+
+    .card { display: none; min-height: 100vh; }
+    .topbar { background: #fff; border-bottom: 1px solid var(--line); padding: 10px clamp(18px,4vw,54px); display: flex; justify-content: space-between; align-items: center; }
+    .topbar .crest { width: 43px; height: 43px; }
+    .topbar .brand strong { font-size: 14px; }
+    .shell { max-width: 1280px; margin: auto; padding: 28px clamp(18px,4vw,54px) 60px; }
+    .pagehead { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 22px; }
+    .pagehead h1 { font-size: 30px; margin: 3px 0; letter-spacing: -.035em; }
+    .nav { display: flex; gap: 3px; border-bottom: 1px solid var(--line); margin-bottom: 24px; overflow: auto; }
+    .nav button { white-space: nowrap; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 12px 18px; font-weight: 650; }
+    .nav button.active { border-color: var(--green); color: var(--green); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 18px; }
+    .metric, .panel { background: #fff; border: 1px solid var(--line); border-radius: 11px; padding: 20px; margin-bottom: 16px; }
+    .metric label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .metric strong { font-size: 30px; display: block; margin: 7px 0 1px; }
+
+    .reading { display: flex; justify-content: space-between; align-items: center; padding: 17px; background: var(--green-light); border-left: 4px solid var(--green); border-radius: 7px; }
+    .badge-uid { font-family: monospace; background: #edf1ee; border-radius: 5px; padding: 4px 7px; }
+    .badge-count { display: inline-block; background: var(--green-light); color: var(--green); border-radius: 6px; padding: 4px 8px; }
+    .badge-count.multiple { background: #f8efe9; color: #805334; }
+
+    table { width: 100%; border-collapse: collapse; min-width: 650px; text-align: left; }
+    th { font-size: 12px; color: var(--muted); background: #f4f7f4; text-transform: uppercase; padding: 12px 14px; }
+    td { padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .input-edit { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+    .btn-save, .btn-export { background: #fff; border: 1px solid var(--green); color: var(--green); padding: 8px 11px; border-radius: 6px; font-weight: 700; }
+    .logout { border: 0; background: none; color: var(--red); font-weight: 700; }
+    .quiet { color: var(--muted); font-size: 13px; }
+
+    .alert-banner { display: none; background: #fdf2f2; border: 2px solid #b52b31; color: #7a161a; padding: 16px 20px; border-radius: 10px; margin-bottom: 20px; font-size: 15px; font-weight: 700; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(181,43,49,0.4)} 70%{box-shadow:0 0 0 10px rgba(181,43,49,0)} 100%{box-shadow:0 0 0 0 rgba(181,43,49,0)} }
+
+    @media(max-width:820px) {
+      #login-overlay { display: block; }
+      .intro { padding: 23px; border-right: 0; min-height: 118px; }
+      .intro-content, .motto { display: none; }
+      .metrics { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="login-overlay">
+  <section class="intro">
+    <div class="brand">
+      <img class="crest" src="https://asistencia.tecnucleo.com/images/escudo-institucion.png" alt="Escudo I.E. Carlos Lleras Restrepo" onerror="this.style.display='none'">
+      <span><strong>Institución Educativa<br>Carlos Lleras Restrepo</strong><small>Yopal, Casanare</small></span>
+    </div>
+    <div class="intro-content">
+      <div class="stripe"></div>
+      <p class="eyebrow">Sistema PAE & RFID</p>
+      <h1>Control de Asistencia</h1>
+      <p>Gestión de lecturas de tarjetas y control del servicio de alimentación PAE.</p>
+    </div>
+    <div class="motto">Mi colegio, el mejor lugar para convivir y aprender.</div>
+  </section>
+
+  <section class="login-side">
+    <div class="login-box">
+      <h2>Ingresar al sistema</h2>
+      <p>Escribe la IP de la ESP32, selecciona tu perfil e ingresa la clave.</p>
+
+      <label class="field" for="esp32-ip">IP de la ESP32 (Red Local):</label>
+      <input type="text" id="esp32-ip" class="control" placeholder="Ej: 192.168.1.15">
+
+      <span class="field">Perfil</span>
+      <div style="display:flex;gap:8px">
+        <button type="button" class="secondary tab-role active" onclick="setRol(this,'admin')">Administrador</button>
+        <button type="button" class="secondary tab-role" onclick="setRol(this,'docente')">Docente</button>
+      </div>
+
+      <label class="field" id="lbl-pass" for="login-pass">Contraseña Admin:</label>
+      <div class="password-row">
+        <input type="password" id="login-pass" class="control" placeholder="Contraseña" autocomplete="off" onkeyup="if(event.key==='Enter') autenticar();">
+        <button type="button" class="secondary" onclick="togglePass()">Mostrar</button>
+      </div>
+
+      <button type="button" class="primary" onclick="autenticar()">Ingresar</button>
+      <div id="login-error" class="error">Contraseña incorrecta o error de conexión con la ESP32.</div>
+
+      <div id="box-cambiar-clave-docente" style="display:none;margin-top:25px;border-top:1px solid var(--line);padding-top:16px">
+        <label class="field" for="doc-pass-nueva">Cambiar contraseña docente</label>
+        <div class="password-row">
+          <input type="password" id="doc-pass-nueva" class="control" placeholder="Nueva contraseña">
+          <button type="button" class="secondary" onclick="guardarNuevaClaveDocente()">Guardar</button>
+        </div>
+        <div id="msg-cambio-docente" class="quiet"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="card" id="main-panel">
+  <header class="topbar">
+    <div class="brand">
+      <img class="crest" src="https://asistencia.tecnucleo.com/images/escudo-institucion.png" alt="Escudo I.E. Carlos Lleras Restrepo" onerror="this.style.display='none'">
+      <span><strong>IE Carlos Lleras Restrepo</strong><small>Control PAE</small></span>
+    </div>
+    <button class="logout" onclick="cerrarSesion()">Salir</button>
+  </header>
+
+  <main class="shell">
+    <div class="pagehead">
+      <div>
+        <span class="eyebrow">Registro de tarjetas</span>
+        <h1>Panel de Asistencia PAE</h1>
+        <p>Estudiantes asociados al servicio PAE.</p>
+      </div>
+      <span class="quiet">Sincronización directa con Firebase</span>
+    </div>
+
+    <div id="banner-alerta" class="alert-banner"></div>
+
+    <nav class="nav">
+      <button class="nav-item active" onclick="cambiarTab('tab-dashboard',this)">Resumen</button>
+      <button class="nav-item" onclick="cambiarTab('tab-historico',this)">Histórico</button>
+      <button class="nav-item" onclick="cambiarTab('tab-edicion',this)">Estudiantes y tarjetas</button>
+      <button class="nav-item" onclick="exportarCSV()">Descargar CSV</button>
+    </nav>
+
+    <section id="tab-dashboard" class="tab-content active">
+      <div class="metrics">
+        <div class="metric"><label>Lecturas registradas</label><strong id="kpi-asistencia">0</strong><small>Pasadas de tarjeta</small></div>
+        <div class="metric"><label>Última lectura</label><strong id="kpi-ultimo-nombre" style="font-size:19px">---</strong><small id="kpi-ultimo-hora">Esperando...</small></div>
+        <div class="metric"><label>Tarjeta más frecuente</label><strong id="kpi-mas-frecuente" style="font-size:19px">---</strong><small id="kpi-mas-frecuente-sub">Sin lecturas</small></div>
+      </div>
+
+      <div class="panel">
+        <div class="reading">
+          <div><b id="ult-nombre">Esperando tarjeta...</b><small id="ult-time">Aproxima una tarjeta al lector RFID MFRC522</small></div>
+          <span class="badge-uid" id="ult-uid">---</span>
+        </div>
+      </div>
+      <div class="panel"><div id="contenedor-dashboard-tabla"></div></div>
+    </section>
+
+    <section id="tab-historico" class="tab-content">
+      <div class="panel">
+        <div style="display:flex;gap:10px;margin-bottom:15px;">
+          <input id="inputBuscar" class="control" type="search" placeholder="Buscar estudiante, grado o UID" onkeyup="renderizarHistorico()">
+          <select id="selectFecha" class="control" onchange="renderizarHistorico()"><option value="TODAS">Todas las fechas</option></select>
+        </div>
+        <div id="contenedor-historico"></div>
+        <div id="total-historico" class="quiet" style="margin-top:10px;">Sincronizando...</div>
+      </div>
+    </section>
+
+    <section id="tab-edicion" class="tab-content">
+      <div class="panel">
+        <table>
+          <thead><tr><th>UID TARJETA</th><th>NOMBRES Y APELLIDOS</th><th>GRADO / CURSO</th><th>ACCIÓN</th></tr></thead>
+          <tbody id="tabla-edicion"><tr><td colspan="4">Cargando lista de tarjetas...</td></tr></tbody>
+        </table>
+        <div id="status-guardado" class="quiet" style="margin-top:10px;"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  let rolSeleccionado = 'admin';
+  let historialLecturas = [];
+  let mapaTarjetas = {};
+  let uidsCargadosEnEdicion = new Set();
+
+  window.onload = function() {
+    const ipGuardada = localStorage.getItem('esp32_ip') || '';
+    document.getElementById('esp32-ip').value = ipGuardada;
+
+    if (sessionStorage.getItem('rfid_autenticado') === 'true') {
+      mostrarPanel();
+    }
+  };
+
+  function getBaseUrl() {
+    let ip = document.getElementById('esp32-ip').value.trim();
+    if (!ip) ip = window.location.hostname;
+    if (!ip.startsWith('http://') && !ip.startsWith('https://')) {
+      ip = 'http://' + ip;
+    }
+    return ip.replace(/\/$/, '');
+  }
+
+  function setRol(btn, rol) {
+    document.querySelectorAll('.tab-role').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    rolSeleccionado = rol;
+    document.getElementById('lbl-pass').innerText = (rol === 'docente') ? '🔑 Contraseña Docente:' : '🔑 Contraseña Admin:';
+    document.getElementById('box-cambiar-clave-docente').style.display = (rol === 'docente') ? 'block' : 'none';
+  }
+
+  function togglePass() {
+    const p = document.getElementById('login-pass');
+    p.type = (p.type === 'password') ? 'text' : 'password';
+  }
+
+  async function autenticar() {
+    const pass = document.getElementById('login-pass').value.trim();
+    const error = document.getElementById('login-error');
+
+    try {
+      const res = await fetch(getBaseUrl() + '/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rol: rolSeleccionado, pass: pass })
+      });
+
+      if (res.ok) {
+        localStorage.setItem('esp32_ip', document.getElementById('esp32-ip').value.trim());
+        sessionStorage.setItem('rfid_autenticado', 'true');
+        error.style.display = 'none';
+        mostrarPanel();
+      } else {
+        error.style.display = 'block';
+      }
+    } catch (e) {
+      error.style.display = 'block';
+    }
+  }
+
+  async function guardarNuevaClaveDocente() {
+    const nueva = document.getElementById('doc-pass-nueva').value.trim();
+    const msg = document.getElementById('msg-cambio-docente');
+
+    try {
+      const res = await fetch(getBaseUrl() + '/api/cambiar_clave_docente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nueva: nueva })
+      });
+
+      if (res.ok) {
+        msg.style.color = '#689F38';
+        msg.innerText = '🌸 Guardada en la ESP32 con éxito';
+      } else {
+        msg.style.color = '#C6536B';
+        msg.innerText = '❌ Error al actualizar';
+      }
+    } catch (e) {
+      msg.style.color = '#C6536B';
+      msg.innerText = '❌ Error de conexión';
+    }
+  }
+
+  function mostrarPanel() {
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('main-panel').style.display = 'block';
+    cargarTodo();
+    setInterval(cargarTodo, 3000);
+  }
+
+  function cerrarSesion() {
+    sessionStorage.removeItem('rfid_autenticado');
+    location.reload();
+  }
+
+  function cambiarTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    if (btn) btn.classList.add('active');
+
+    if (tabId === 'tab-edicion' && !estaEscribiendo()) {
+      renderizarEdicion(false);
+    }
+  }
+
+  function estaEscribiendo() {
+    const activo = document.activeElement;
+    return activo && (activo.tagName === 'INPUT' || activo.tagName === 'TEXTAREA');
+  }
+
+  async function cargarTodo() {
+    if (sessionStorage.getItem('rfid_autenticado') !== 'true') return;
+    await Promise.all([cargarTarjetasFirebase(), cargarHistorialFirebase(), verificarAlerta()]);
+    actualizarKPIs();
+    renderizarHistorico();
+    if (!estaEscribiendo()) renderizarEdicion(true);
+  }
+
+  async function verificarAlerta() {
+    try {
+      const res = await fetch(getBaseUrl() + '/api/alerta');
+      const data = await res.json();
+      const banner = document.getElementById('banner-alerta');
+
+      if (data.activa) {
+        const info = mapaTarjetas[data.uid] || {};
+        const nombreEst = info.nombre ? info.nombre : ('UID ' + data.uid);
+        const gradoEst = info.grado ? (' (' + info.grado + ')') : '';
+        banner.innerHTML = `🚨 <b>[EMERGENCIA O ADVERTENCIA]</b><br><b>Estudiante:</b> ${nombreEst}${gradoEst}<br>${data.mensaje}`;
+        banner.style.display = 'block';
+      } else {
+        banner.style.display = 'none';
+      }
+    } catch (e) { console.error('Error al consultar alerta:', e); }
+  }
+
+  async function cargarTarjetasFirebase() {
+    try {
+      const res = await fetch(getBaseUrl() + '/api/tarjetas');
+      const data = await res.json();
+      mapaTarjetas = (data && !data.error) ? data : {};
+    } catch (e) { console.error('Error cargando tarjetas:', e); }
+  }
+
+  async function cargarHistorialFirebase() {
+    try {
+      const res = await fetch(getBaseUrl() + '/api/historial');
+      const data = await res.json();
+      if (!data || data.error) return;
+
+      historialLecturas = Object.keys(data).map(k => ({ firebaseId: k, ...data[k] }));
+      historialLecturas.sort((a, b) => {
+        let strA = (a.fecha || '') + ' ' + (a.hora || '');
+        let strB = (b.fecha || '') + ' ' + (b.hora || '');
+        return strB.localeCompare(strA);
+      });
+
+      poblarFiltroFechas();
+    } catch (e) { console.error('Error cargando historial:', e); }
+  }
+
+  function actualizarKPIs() {
+    document.getElementById('kpi-asistencia').innerText = historialLecturas.length;
+    let frecuencias = {};
+    let maxUid = '', maxCount = 0;
+
+    historialLecturas.forEach(r => {
+      if (r.codigo) {
+        frecuencias[r.codigo] = (frecuencias[r.codigo] || 0) + 1;
+        if (frecuencias[r.codigo] > maxCount) {
+          maxCount = frecuencias[r.codigo];
+          maxUid = r.codigo;
+        }
+      }
+    });
+
+    if (maxUid) {
+      let infoMax = mapaTarjetas[maxUid] || {};
+      document.getElementById('kpi-mas-frecuente').innerText = infoMax.nombre || maxUid;
+      document.getElementById('kpi-mas-frecuente-sub').innerText = `🌸 Pasó ${maxCount} veces hoy`;
+    }
+
+    if (historialLecturas.length > 0) {
+      const ultimo = historialLecturas[0];
+      const uidUlt = ultimo.codigo || '---';
+      const infoUlt = mapaTarjetas[uidUlt] || {};
+      const vecesUlt = frecuencias[uidUlt] || 1;
+
+      document.getElementById('ult-uid').innerText = uidUlt;
+      document.getElementById('ult-nombre').innerText = (infoUlt.nombre ? infoUlt.nombre : 'Sin asignar') + (infoUlt.grado ? ' (' + infoUlt.grado + ')' : '');
+      document.getElementById('ult-time').innerText = 'Pasó su tarjeta ' + vecesUlt + (vecesUlt === 1 ? ' vez' : ' veces') + ' hoy (última a las ' + (ultimo.hora || '') + ') 🌸';
+
+      document.getElementById('kpi-ultimo-nombre').innerText = infoUlt.nombre || uidUlt;
+      document.getElementById('kpi-ultimo-hora').innerText = (ultimo.hora || '') + (infoUlt.grado ? ' (' + infoUlt.grado + ')' : '');
+    }
+  }
+
+  function poblarFiltroFechas() {
+    const select = document.getElementById('selectFecha');
+    const prev = select.value;
+    const fechas = [...new Set(historialLecturas.map(r => r.fecha).filter(Boolean))].sort((a,b) => b.localeCompare(a));
+
+    let opt = '<option value="TODAS">📅 Todas las fechas (' + historialLecturas.length + ')</option>';
+    fechas.forEach(f => {
+      const cant = historialLecturas.filter(r => r.fecha === f).length;
+      opt += `<option value="${f}">${f} (${cant} lecturas)</option>`;
+    });
+
+    select.innerHTML = opt;
+    if (prev && opt.includes(prev)) select.value = prev;
+  }
+
+  function renderizarHistorico() {
+    const fechaFiltro = document.getElementById('selectFecha').value || 'TODAS';
+    const busqueda = (document.getElementById('inputBuscar')?.value || '').toLowerCase().trim();
+    const contenedor = document.getElementById('contenedor-historico');
+    const contenedorDash = document.getElementById('contenedor-dashboard-tabla');
+    
+    if (historialLecturas.length === 0) {
+      const vacio = '<div style="text-align:center; padding:20px;">Sin lecturas registradas.</div>';
+      contenedor.innerHTML = vacio;
+      if(contenedorDash) contenedorDash.innerHTML = vacio;
+      return;
+    }
+
+    let filtrados = (fechaFiltro === 'TODAS') ? historialLecturas : historialLecturas.filter(r => r.fecha === fechaFiltro);
+
+    if (busqueda.length > 0) {
+      filtrados = filtrados.filter(r => {
+        const info = mapaTarjetas[r.codigo] || {};
+        return (info.nombre || '').toLowerCase().includes(busqueda) || 
+               (info.grado || '').toLowerCase().includes(busqueda) || 
+               (r.codigo || '').toLowerCase().includes(busqueda);
+      });
+    }
+
+    let mapaConteo = {};
+    filtrados.forEach(r => { if (r.codigo) mapaConteo[r.codigo] = (mapaConteo[r.codigo] || 0) + 1; });
+
+    let html = `<table><thead><tr><th>UID TARJETA</th><th>NOMBRES Y APELLIDOS</th><th>GRADO / CURSO</th><th>ÚLTIMA HORA</th><th>VECES PASADA</th></tr></thead><tbody>`;
+
+    filtrados.forEach(x => {
+      const info = mapaTarjetas[x.codigo] || {};
+      const veces = mapaConteo[x.codigo] || 1;
+      const icono = (veces % 2 === 0) ? '🌸' : '🎀';
+      html += `<tr>
+        <td><span class="badge-uid">${x.codigo}</span></td>
+        <td><b>${info.nombre || '<i>Sin asignar</i>'}</b></td>
+        <td>${info.grado || '-'}</td>
+        <td>${x.hora}</td>
+        <td><span class="badge-count ${veces > 1 ? 'multiple' : ''}">${icono} ${veces} ${veces === 1 ? 'vez' : 'veces'}</span></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    contenedor.innerHTML = html;
+    if (contenedorDash) contenedorDash.innerHTML = html;
+    document.getElementById('total-historico').innerText = 'Mostrando ' + filtrados.length + ' registros';
+  }
+
+  function renderizarEdicion(soloNuevos = false) {
+    const tbody = document.getElementById('tabla-edicion');
+    const uidsHistorial = historialLecturas.map(r => r.codigo);
+    const uidsTarjetas = Object.keys(mapaTarjetas);
+    const todosUIDs = [...new Set([...uidsHistorial, ...uidsTarjetas])].filter(Boolean);
+
+    if (todosUIDs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4">No hay tarjetas registradas aún.</td></tr>';
+      uidsCargadosEnEdicion.clear();
+      return;
+    }
+
+    if (!soloNuevos || uidsCargadosEnEdicion.size === 0) {
+      let html = '';
+      uidsCargadosEnEdicion.clear();
+
+      todosUIDs.forEach(uid => {
+        const info = mapaTarjetas[uid] || { nombre: '', grado: '' };
+        html += `<tr id="row_${uid}">
+          <td><span class="badge-uid">${uid}</span></td>
+          <td><input type="text" id="nom_${uid}" class="input-edit" value="${info.nombre || ''}" placeholder="Escribe nombres y apellidos"></td>
+          <td><input type="text" id="gra_${uid}" class="input-edit" value="${info.grado || ''}" placeholder="Ej: 11-A, Docente"></td>
+          <td><button class="btn-save" id="btn_${uid}" onclick="guardarTarjeta('${uid}')">💾 GUARDAR</button></td>
+        </tr>`;
+        uidsCargadosEnEdicion.add(uid);
+      });
+      tbody.innerHTML = html;
+    } else {
+      todosUIDs.forEach(uid => {
+        if (!uidsCargadosEnEdicion.has(uid)) {
+          const info = mapaTarjetas[uid] || { nombre: '', grado: '' };
+          const tr = document.createElement('tr');
+          tr.id = `row_${uid}`;
+          tr.innerHTML = `
+            <td><span class="badge-uid">${uid}</span></td>
+            <td><input type="text" id="nom_${uid}" class="input-edit" value="${info.nombre || ''}" placeholder="Escribe nombres y apellidos"></td>
+            <td><input type="text" id="gra_${uid}" class="input-edit" value="${info.grado || ''}" placeholder="Ej: 11-A, Docente"></td>
+            <td><button class="btn-save" id="btn_${uid}" onclick="guardarTarjeta('${uid}')">💾 GUARDAR</button></td>
+          `;
+          tbody.appendChild(tr);
+          uidsCargadosEnEdicion.add(uid);
+        }
+      });
+    }
+  }
+
+  async function guardarTarjeta(uid) {
+    const nombre = document.getElementById(`nom_${uid}`).value.trim();
+    const grado = document.getElementById(`gra_${uid}`).value.trim();
+    const btn = document.getElementById(`btn_${uid}`);
+    const status = document.getElementById('status-guardado');
+
+    btn.disabled = true;
+    btn.innerText = '⏳ GUARDANDO...';
+
+    try {
+      const res = await fetch(getBaseUrl() + '/api/guardar_tarjeta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, nombre, grado })
+      });
+
+      if (res.ok) {
+        status.innerText = `🌸 Guardado para ${uid}!`;
+        mapaTarjetas[uid] = { nombre, grado };
+        actualizarKPIs();
+        renderizarHistorico();
+      } else {
+        status.innerText = '❌ Error al guardar';
+      }
+    } catch (e) {
+      status.innerText = '❌ Error de conexión';
+    } finally {
+      btn.disabled = false;
+      btn.innerText = '💾 GUARDAR';
+    }
+  }
+
+  function exportarCSV() {
+    if (historialLecturas.length === 0) {
+      alert("No hay datos para exportar.");
+      return;
+    }
+    let mapaConteo = {};
+    historialLecturas.forEach(r => { if (r.codigo) mapaConteo[r.codigo] = (mapaConteo[r.codigo] || 0) + 1; });
+
+    let csv = "UID,Estudiante,Grado,Fecha,Hora,Veces Pasada\n";
+    historialLecturas.forEach(r => {
+      let info = mapaTarjetas[r.codigo] || { nombre: 'Sin asignar', grado: '-' };
+      csv += `"${r.codigo}","${info.nombre || 'Sin asignar'}","${info.grado || '-'}","${r.fecha || ''}","${r.hora || ''}","${mapaConteo[r.codigo] || 1}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `Reporte_PAE_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+</script>
+</body>
+</html>
